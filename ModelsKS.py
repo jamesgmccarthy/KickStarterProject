@@ -8,9 +8,10 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.externals import joblib
+from sklearn.ensemble import BaggingClassifier, VotingClassifier
+
 import FeatureEngineeringKS
 import ParameterSelection
-
 # %%
 
 
@@ -25,7 +26,7 @@ def decisionTree(X_train, X_test, y_train, y_test, force=False):
     dt.fit(X_train, y_train)
     acc = dt.score(X_test, y_test)
     print('Decision Tree accuracy:', acc)
-    return acc
+    return dt
 
 
 def logisticRegrs(X_train, X_test, y_train, y_test, force=False):
@@ -38,7 +39,7 @@ def logisticRegrs(X_train, X_test, y_train, y_test, force=False):
     lgr.fit(X_train, y_train)
     acc = lgr.score(X_test, y_test)
     print('Logistic Regression accuracy:', acc)
-    return acc
+    return lgr
 
 
 def kNeighbor(X_train, X_test, y_train, y_test, force=False):
@@ -51,7 +52,14 @@ def kNeighbor(X_train, X_test, y_train, y_test, force=False):
     knn.fit(X_train, y_train)
     acc = knn.score(X_test, y_test)
     print('K Nearest Neighbours accuracy:', acc)
-    return acc
+    return knn
+
+
+def voting(X_train, X_test, y_train, y_test, estimators):
+    ensemble = VotingClassifier(estimators, voting='hard')
+    ensemble.fit(X_train, y_train)
+    acc = ensemble.score(X_test, y_test)
+    print(acc)
 
 
 """
@@ -87,83 +95,95 @@ gbm_model = lgb.train(gbm_param, train_data, 10, valid_sets=[validation_data])
 
 # %%
 gbm_model.best_score
-# %%
-
 """
+# %%
 
 
 def main():
     X_train_d, X_test_d, y_train_d, y_test_d = FeatureEngineeringKS.main(
         "./kickstarter-projects/ks-projects-201801.csv")
-    dt_acc = decisionTree(X_train_d, X_test_d, y_train_d, y_test_d)
-    lgr_ac = logisticRegrs(X_train_d, X_test_d, y_train_d, y_test_d)
     X_train, X_test, y_train, y_test = FeatureEngineeringKS.main(
         './kickstarter-projects/ks-projects-201801.csv', dummy=False)
+    dt = decisionTree(X_train_d, X_test_d, y_train, y_test)
+    lgr = logisticRegrs(X_train_d, X_test_d, y_train_d, y_test_d)
     knn = kNeighbor(X_train, X_test, y_train, y_test)
+    estimators = [('log_reg', lgr), ('knn', knn)]
+    voting(X_train, X_test, y_train, y_test, estimators)
 
 
 main()
 """
 # %%
-params = joblib.load('dtParams.pkl')
-
-# %%
-params.best_params_
-dt = DecisionTreeClassifier(**params.best_params_)
-# %%
-
-# %%
-dt.fit(X_train, y_train)
-dt.score(X_test, y_test)
-
-# %%
-max(dt.feature_importances_)
-# %%
-X_train = X_train.drop('backers', 1)
-X_test = X_test.drop('backers', 1)
-
-# %%
-X_train
-
-# %%
-
-X_train_d, X_test_d, y_train_d, y_test_d = FeatureEngineeringKS.main(
-    './kickstarter-projects/ks-projects-201801.csv')
-
-# %%
-X_train['goal_buckets'] = X_train.groupby(['main_category'])['usd_goal_real'].transform(
-    lambda x: pd.qcut(x, [0, 0.25, 0.5, 0.75, 1], labels=[1, 2, 3, 4]))
-
-
-# %%
-month = X_train.groupby(['goal_buckets', 'main_category',
-                         'launch_quarter', 'launch_year'])['category'].count()
-month1 = X_train.groupby(
-    ['goal_buckets', 'main_category', 'launch_quarter', 'launch_year']).count()
-# %%
-month
-
-# %%
-month1[['category']]
-"""
-# %%
-
 X_train, X_test, y_train, y_test = FeatureEngineeringKS.main(
     './kickstarter-projects/ks-projects-201801.csv', dummy=False)
-X_train.set_index('ID')
 X_train['goal_bucket'] = X_train.groupby(['main_category'])['usd_goal_real'].transform(
     lambda x: pd.qcut(x, [0, 0.25, 0.5, 0.75, 1], labels=[1, 2, 3, 4]))
+# %%
+projects = X_train.merge(y_train,
+                         how='left', right_index=True, left_index=True).set_index(X_train.index)
+success_projects = projects[projects['state'] == 1]
 
 # %%
-project_per_quarter = X_train.groupby(['main_category', 'goal_bucket',
-                                       'launch_year', 'launch_quarter']).count()
+success_projects['pledge_pb'] = success_projects['usd_pledged_real'] / \
+    success_projects['backers']
+mean_pledge_pb = pd.DataFrame(success_projects.groupby(
+    ['main_category', 'launch_year', 'launch_quarter', 'goal_bucket'])['pledge_pb'].mean())
+mean_pledge_pb.columns = ['mean_pledge_pb']
+mean_pledge_pb.reset_index(inplace=True)
+
 # %%
-project_per_quarter = project_per_quarter[['name']]
+success_projects = success_projects.merge(mean_pledge_pb, how='left', on=[
+                                          'main_category', 'launch_year', 'launch_quarter', 'goal_bucket']).set_index(success_projects.index)
+#success_projects.drop('pledge_pb', axis=1)
 # %%
-project_per_quarter.reset_index(inplace=True)
+success_projects['mean_number_of_backers'] = success_projects['usd_goal_real'] / \
+    success_projects['mean_pledge_pb']
+# %%
+success_projects = success_projects[[
+    'main_category', 'launch_year', 'launch_quarter',
+    'goal_bucket', 'mean_number_of_backers']]
+# %%
+success_projects = success_projects.groupby(['main_category', 'launch_year',
+                                             'launch_quarter', 'goal_bucket']).mean()
+
+# %%
+success_projects.reset_index(inplace=True)
+# %%
+X_train = pd.merge(X_train, success_projects, how='left',
+                   on=['main_category', 'launch_year',
+                       'launch_quarter', 'goal_bucket'])
+# %%
+backer = X_train.groupby(
+    ['main_category', 'launch_year', 'launch_quarter'])
+# %%
+
+# %%
+y_train
+# %%
+X_train.index
+
+# %%
+projects['state']
+
+# %%
+X_train, X_test, y_train, y_test = FeatureEngineeringKS.main(
+    './kickstarter-projects/ks-projects-201801.csv', dummy=False)
+
+# %%
+X_train['mean_number_of_backers']
+
+# %%
+X_test.index
+
+# %%
+y_train.index
+
+# %%
+y_test.index
 
 
 # %%
-
+X_test.info()
 
 # %%
+"""
