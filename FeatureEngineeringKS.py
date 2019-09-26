@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
 
 
@@ -89,64 +89,26 @@ def create_features_name(df):
     name_qm
     name_colons
     name_num_words
-    name_upper_case
-    name_sentiment
+    name_num_words_upper
+    name_num_words_upper_perc
 
     Arguments:
         df {[type]} -- [description]
     """
+    # Code adapted from https://www.kaggle.com/shivamb/an-insightful-story-of-crowdfunding-projects
     df['name_len'] = df['name'].apply(lambda x: len(x))
     df['name_excl'] = df['name'].apply(lambda x: 1 if '!' in x else 0)
     df['name_qm'] = df['name'].apply(lambda x: 1 if '?' in x else 0)
     df['name_colons'] = df['name'].apply(lambda x: 1 if ':' or ';' in x else 0)
     df['name_num_words'] = df['name'].apply(lambda x: len(x.split()))
-    df['name_num_words'] = df['name'].apply(lambda x: len(
+    df['name_num_words_upper'] = df['name'].apply(lambda x: len(
         [word for word in x.split() if word.isupper()]))
+    df['name_num_words_upper_perc'] = df['name_num_words_upper'] / \
+        df['name_num_words']
     return df
 
 
-def create_label_encoding(X_train, X_test):
-    lb_make = LabelEncoder()
-    X_train['main_category'] = lb_make.fit_transform(X_train['main_category'])
-    X_train['category'] = lb_make.fit_transform(X_train['category'])
-    X_train['country'] = lb_make.fit_transform(X_train['country'])
-    X_train['currency'] = lb_make.fit_transform(X_train['currency'])
-    X_test['main_category'] = lb_make.fit_transform(X_test['main_category'])
-    X_test['category'] = lb_make.fit_transform(X_test['category'])
-    X_test['country'] = lb_make.fit_transform(X_test['country'])
-    X_test['currency'] = lb_make.fit_transform(X_test['currency'])
-    return X_train, X_test
-
-
-def create_dummy_features(X_train, X_test):
-    """Create dummy features for categorical features using one hot encoding:
-    main_category
-    category
-    country
-    currency
-    (Launch variables??)
-    Arguments:
-        df {[type]} -- [description]
-    """
-    # Main categories
-    X_train = pd.get_dummies(X_train, columns=['main_category'])
-    X_test = pd.get_dummies(X_test, columns=['main_category'])
-
-    # Sub Categories
-    X_train = pd.get_dummies(X_train, columns=['category'])
-    X_test = pd.get_dummies(X_test, columns=['category'])
-
-    # Country
-    X_train = pd.get_dummies(X_train, columns=['country'])
-    X_test = pd.get_dummies(X_test, columns=['country'])
-    # Currency
-    X_train = pd.get_dummies(X_train, columns=['currency'])
-    X_test = pd.get_dummies(X_test, columns=['currency'])
-
-    return X_train, X_test
-
-
-def split_data(df):
+def random_split_data(df):
     """Split data into train test sets
     Done because some features a reliant on numeric values calculated within
     given dataset
@@ -182,7 +144,7 @@ def create_buckets_features(X_train, X_test, y_train, y_test):
     Returns:
         [type] -- [description]
     """
-
+    # Code adapted from https://www.kaggle.com/srishti280992/kickstarter-project-classification-lgbm-70-3
     # Training set
     X_train['goal_bucket'] = X_train.groupby(['main_category'])['usd_goal_real'].transform(
         lambda x: pd.qcut(x, [0, 0.25, 0.5, 0.75, 1], labels=[1, 2, 3, 4]))
@@ -323,14 +285,11 @@ def drop_features(X_train, X_test):
         ['deadline', 'launched', 'name', 'backers', 'usd_pledged_real'], axis=1)
     X_test = X_test.drop(['deadline', 'launched', 'name',
                           'backers', 'usd_pledged_real'], axis=1)
-    X_train['mean_number_of_backers'].fillna(
-        0, inplace=True)  # Temporary
-    X_test['mean_number_of_backers'].fillna(
-        0, inplace=True)  # Temporary
+
     return X_train, X_test
 
 
-def main(input, dummy=True):
+def main(input, split='random', train=None, test=None):
     """Exectues all feature engineering functions of input data and saves output file
 
     Arguments:
@@ -339,17 +298,19 @@ def main(input, dummy=True):
     df = prepare_data(input)
     df = create_features_date(df)
     df = create_features_name(df)
-    X_train, X_test, y_train, y_test = split_data(df)
+
+    if split == 'random':
+        X_train, X_test, y_train, y_test = random_split_data(df)
+    elif (split == 'strat_k_fold') and (len(train) != 0 and len(test) != 0):
+        y = df['state']
+        X = df.drop('state', axis=1)
+        X_train = X.iloc[train]
+        X_test = X.iloc[test]
+        y_train = y.iloc[train]
+        y_test = y.iloc[test]
     X_train, X_test = create_buckets_features(X_train, X_test, y_train, y_test)
-    X_train_d, X_test_d = create_dummy_features(
-        X_train, X_test)
-    X_train, X_test = create_label_encoding(X_train, X_test)
     X_train, X_test = drop_features(X_train, X_test)
-    X_train_d, X_test_d = drop_features(X_train_d, X_test_d)
-    if not dummy:
-        return X_train, X_test, y_train, y_test
-    else:  # Temporary
-        return X_train_d, X_test_d, y_train, y_test
+    return X_train, X_test, y_train, y_test
 
 
 if __name__ == '__main__':

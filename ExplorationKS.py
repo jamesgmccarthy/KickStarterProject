@@ -1,6 +1,4 @@
-# TODO: MissingValues
-# TODO: Non-unique names
-# TODO: Clean up graphs
+
 # %%
 from collections import Counter
 import chardet
@@ -36,10 +34,13 @@ projects.describe()
 projects.nunique()
 
 # %%
+projects.info()
+# %%
 projects.isnull().sum()
-# TODO: is it ok to just drop na
+# %%
 projects = projects.dropna()
 # %%
+
 unique_names = projects['name'].value_counts()
 non_unique_names = unique_names[unique_names > 1]
 non_unique_projects = projects.loc[projects['name'].isin(
