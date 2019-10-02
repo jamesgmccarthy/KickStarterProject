@@ -102,6 +102,7 @@ def decisionTree(X_train, X_test, y_train, y_test, force=False):
 
 
 def logisticRegrs(X_train, X_test, y_train, y_test, force=False):
+    # If model is already saved, load it and test it
     if os.path.isfile("./Models/lgrModel.pkl"):
         lgr = joblib.load("./Models/lgrModel.pkl")
         train_acc = lgr.score(X_train, y_train)
@@ -113,9 +114,15 @@ def logisticRegrs(X_train, X_test, y_train, y_test, force=False):
         print('Logistic Regression accuracy:', acc)
         print('Logistic Regression AUC:', auc_score)
         return lgr
+
+    # If model parameters do not exist or force is true, use grid search to find
+    # optimal parameters and then train model and save it
     if not os.path.isfile("./ModelHyperparm/lgrParams.pkl") or force:
         params = HyperParameterSelection.lgrParamSelect(X_train, y_train)
         lgr = LogisticRegression(**params, random_state=0)
+
+    # If model parameters do exist and force is false, load parameters
+    # and then train model and save it
     elif os.path.isfile("./ModelHyperparm/lgrParams.pkl") and not force:
         gridsearch_model = joblib.load("./ModelHyperparm/lgrParams.pkl")
         lgr = LogisticRegression(
@@ -134,6 +141,7 @@ def logisticRegrs(X_train, X_test, y_train, y_test, force=False):
 
 
 def randomForest(X_train, X_test, y_train, y_test, force=False):
+    # If model is already saved, load it and test it
     if os.path.isfile("./Models/rfModel.pkl"):
         rf = joblib.load("./Models/rfModel.pkl")
         train_acc = rf.score(X_train, y_train)
@@ -145,9 +153,15 @@ def randomForest(X_train, X_test, y_train, y_test, force=False):
         print('Random Forrest test accuracy:', acc)
         print('Random Forrest AUC:', auc_score)
         return rf
+
+    # If model parameters do not exist or force is true, use grid search to find
+    # optimal parameters and then train model and save it
     if not os.path.isfile('./ModelHyperparm/rfParams.pkl') or force:
         params = HyperParameterSelection.rfParamSelect(X_train, y_train)
         rf = RandomForestClassifier(**params,class_weight='balanced_subsample')
+
+    # If model parameters do exist and force is false, load parameters
+    # and then train model and save it
     elif os.path.isfile('./ModelHyperparm/rfParams.pkl') and not force:
         gridsearch_model = joblib.load('./ModelHyperparm/rfParams.pkl')
         rf = RandomForestClassifier(
@@ -167,6 +181,7 @@ def randomForest(X_train, X_test, y_train, y_test, force=False):
 
 
 def gradientBooster(X_train, X_test, y_train, y_test, force=False):
+    # If model is already saved, load it and test it
     if os.path.isfile("./Models/gbModel.pkl"):
         gb = joblib.load("./Models/gbModel.pkl")
         train_acc = gb.score(X_train, y_train)
@@ -178,7 +193,8 @@ def gradientBooster(X_train, X_test, y_train, y_test, force=False):
         print('Gradient Boosting Classifier test accuracy:', acc)
         print('Gradient Boosting Classifier AUC:', auc_score)
         return gb
-
+    
+    # Create, train, save model and test model
     else:
         gb = GradientBoostingClassifier(
             loss='exponential', n_estimators=100, random_state=0)
@@ -196,6 +212,7 @@ def gradientBooster(X_train, X_test, y_train, y_test, force=False):
 
 
 def adaBooster(X_train, X_test, y_train, y_test, force=False):
+    # If model is already saved, load it and test it
     if os.path.isfile("./Models/adaModel.pkl"):
         ada = joblib.load("./Models/adaModel.pkl")
         train_acc = ada.score(X_train, y_train)
@@ -208,6 +225,7 @@ def adaBooster(X_train, X_test, y_train, y_test, force=False):
         print('AdaBoosting Classifier AUC:', auc_score)
         return ada
 
+    # Else create, train, save model and test model
     else:
         ada = AdaBoostClassifier(base_estimator = DecisionTreeClassifier(criterion = 'entropy',
                                 max_depth = 20, min_samples_split = 1000, random_state = 0, class_weight = 'balanced'),
@@ -226,6 +244,7 @@ def adaBooster(X_train, X_test, y_train, y_test, force=False):
 
 
 def voting(X_train, X_test, y_train, y_test, estimators):
+    # If model is already saved, load it and test it
     if os.path.isfile("./Models/votingModel.pkl"):
         ensemble = joblib.load('./Models/votingModel.pkl')
         predictions = ensemble.predict_proba(X_test)
@@ -237,18 +256,22 @@ def voting(X_train, X_test, y_train, y_test, estimators):
         print("Voting Ensemble Acc:", acc)
         print("Voting Ensemble AUC:", auc_score)
         return ensemble
-    ensemble = VotingClassifier(estimators, voting='soft')
-    ensemble.fit(X_train, y_train)
-    joblib.dump(ensemble, "./Models/votingModel.pkl")
-    predictions = ensemble.predict_proba(X_test)
-    fpr, tpr, thresholds = roc_curve(y_test, predictions[:,1])
-    auc_score = auc(fpr, tpr)
-    acc = ensemble.score(X_test, y_test)
-    print("Voting Ensemble Acc:", acc)
-    print("Voting Ensemble AUC:", auc_score)
-    return ensemble
+
+    # Else create, train, save model and test model
+    else:
+        ensemble = VotingClassifier(estimators, voting='soft')
+        ensemble.fit(X_train, y_train)
+        joblib.dump(ensemble, "./Models/votingModel.pkl")
+        predictions = ensemble.predict_proba(X_test)
+        fpr, tpr, thresholds = roc_curve(y_test, predictions[:,1])
+        auc_score = auc(fpr, tpr)
+        acc = ensemble.score(X_test, y_test)
+        print("Voting Ensemble Acc:", acc)
+        print("Voting Ensemble AUC:", auc_score)
+        return ensemble
 
 def bagging(X_train, X_test, y_train, y_test):
+    
     dt = DecisionTreeClassifier(criterion='entropy', max_depth=20,
                          min_samples_split=1000, random_state=0,
                          class_weight = 'balanced')
@@ -295,12 +318,13 @@ def main():
                              learning_rate=0.5)
     estimators = [('dt', dt), ('rf', rf), ('ada', ada), ('gb', gb)]
     voting_ensemble = voting(X_train_d, X_test_d, y_train, y_test, estimators)
-    
-    #X_train, X_test = recursive_feature_selection(
-      # X_train, X_test, y_train, model=rf)
-    #print(X_train.columns)
-    #bagging_ensemble = bagging(X_train_d, X_test_d, y_train, y_test)
-    
+
+    """
+    X_train, X_test = recursive_feature_selection(
+      X_train, X_test, y_train, model=rf)
+    print(X_train.columns)
+    bagging_ensemble = bagging(X_train_d, X_test_d, y_train, y_test)
+    """
 
 if __name__ == "__main__":
     main()
