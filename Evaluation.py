@@ -107,4 +107,5 @@ def main():
     print("Percision:", precision_score(y_test, predicitons))
 
 
-main()
+if __name__ == '__main__':
+    main()

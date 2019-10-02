@@ -47,6 +47,8 @@ def main(input, split='random', train=None, test=None):
     X_train, X_test, y_train, y_test = FeatureEngineeringKS.main(
         input, split=split, train=train, test=test)
     X_train, X_test = impute_missing(X_train, X_test)
+
     # Scaling hurts perfomance
     #X_train, X_test = scale_values(X_train, X_test)
+
     return X_train, X_test, y_train, y_test

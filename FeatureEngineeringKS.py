@@ -79,8 +79,6 @@ def create_features_date(df):
 
     return df
 
-# TODO: Complete sentiment
-
 
 def create_features_name(df):
     """Creates features concerning the name of the project
